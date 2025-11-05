@@ -1,5 +1,5 @@
 
-# Couches	Description et exemples
+# Model Osi
 - Applications (7):	Les protocoles applicatifs : HTTP, FTP, DNS, SSH, POP, SMTP, Bittorrent, etc
 - Transport (4):	Protocole de routage comme TCP, UDP, SCTP Ils vérifient que les données sont bien acheminées et leurs intégrités.
 - Réseau (3): La couche IP. On peut y intégrer, par abus, d’autres protocoles comme ICMP, IGMP.
@@ -7,3 +7,8 @@
 - Physique (1):	Couche réseau comme Ethernet, l’ADSL, Fibre, Wifi.
 Les interconnexions entre les réseaux des fournisseurs
 Les spécifications sur les connexions et câblages
+
+# Model TCP/IP
+- Transport	Couche (4) et (7)IP
+- Couche Réseau (3)
+- Accès réseau	Couche Physique (1) + Liaison (2)
