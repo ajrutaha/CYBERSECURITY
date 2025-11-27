@@ -12,3 +12,6 @@
 - PTR	    Reverse-lookup Pointer records
 - SOA	    Start of Authority records
 - TXT	    Text records
+
+## Winndows Attack
+Evil-WinRM est un outil open-source écrit en Ruby conçu pour interagir avec des serveurs Windows via le protocole WinRM (Windows Remote Management). Il est principalement utilisé dans des contextes de pentesting (tests d'intrusion) et d'administration système, mais il est souvent associé à des scénarios offensifs en cybersécurité.
