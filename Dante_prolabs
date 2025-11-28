@@ -1,3 +1,4 @@
+Documentshttps: //www.studocu.id/id/document/politeknik-caltex-riau/teknik-infformatika/dante-htb-this-one-is-documentation-of-pro-labs-htb/75397465?sid=01764339951&page=1&shared=u
 # Dante
 - wpscan --url http://10.10.110.100:65000/wordpress --enumerate #enumerate wordpress
 
