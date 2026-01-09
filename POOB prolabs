@@ -1,3 +1,6 @@
+https://0xdf.gitlab.io/2020/06/08/endgame-poo.html
+
+
 https://hackyourmom.com/en/osvita/samonavchannya/ctf-ta-rajtapy/yak-projty-laboratoriyu-professional-offensive-operations-na-hackthebox/
 This article provides a detailed walkthrough of the HackTheBox P.O.O. mini-lab, designed to test your skills in all phases of an Active Directory attack. The reader will learn how to compromise an accessible host, escalate privileges, and take over an entire domain, collecting five flags. The article includes step-by-step instructions on how to use masscan, nmap, gobuster, as well as analyze .DS_Store files and exploit IIS ShortName vulnerabilities.
 
