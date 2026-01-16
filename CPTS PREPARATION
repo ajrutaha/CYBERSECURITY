@@ -4,41 +4,19 @@ Tool
 
 
 
-Network discovery
-✅
-nmap
+Network discovery: nmap
 
+chisel: pivoting
 
-AD enumeration
-✅
-crackmapexec, BloodHound
+AD enumeration: crackmapexec, BloodHound
 
+Credential attacks: impacket, hashcat
 
-Credential attacks
-✅
-impacket, hashcat
+SMB / file access: smbclient
 
+Windows access: evil-winrm
 
-SMB / file access
-✅
-smbclient
+Privilege escalation: linpeas, winpeas
 
+Domain compromise: impacket (secretsdump, etc.)
 
-Windows access
-✅
-evil-winrm
-
-
-Privilege escalation
-✅
-linpeas, winpeas
-
-
-Domain compromise
-✅
-impacket (secretsdump, etc.)
-
-
-Proof collection
-✅
-built‑in tools
