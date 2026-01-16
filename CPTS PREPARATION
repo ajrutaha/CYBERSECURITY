@@ -1,0 +1,44 @@
+Phase
+Covered?
+Tool
+
+
+
+Network discovery
+✅
+nmap
+
+
+AD enumeration
+✅
+crackmapexec, BloodHound
+
+
+Credential attacks
+✅
+impacket, hashcat
+
+
+SMB / file access
+✅
+smbclient
+
+
+Windows access
+✅
+evil-winrm
+
+
+Privilege escalation
+✅
+linpeas, winpeas
+
+
+Domain compromise
+✅
+impacket (secretsdump, etc.)
+
+
+Proof collection
+✅
+built‑in tools
