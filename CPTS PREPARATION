@@ -20,3 +20,22 @@ Privilege escalation: linpeas, winpeas
 
 Domain compromise: impacket (secretsdump, etc.)
 
+
+Tips: https://github.com/zagnox/CPTS-cheatsheet  
+
+expected in the exam:
+Get a foothold and root access on Webnix01.
+
+Get a foothold and root access on MS01.
+
+Get a foothold and root access on WS01.
+
+Get a foothold and root access on DC01.
+
+Get a foothold and root access on DC02.
+
+Get a foothold and root access on ADMIN01.
+
+Get a foothold and root access on MGMT01.
+
+Get a foothold and root access on MGMT02.
